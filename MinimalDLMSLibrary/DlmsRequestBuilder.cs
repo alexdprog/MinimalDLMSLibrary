@@ -5,10 +5,13 @@ namespace MinimalDLMS;
 /// </summary>
 public sealed class DlmsRequestBuilder
 {
+    #region Fields
     private readonly int _serverAddress;
     private readonly int _clientAddress;
     private byte _nextSendControl = 0x10;
+    #endregion
 
+    #region Constructor
     /// <summary>
     /// Создает экземпляр билдера DLMS-запросов.
     /// </summary>
@@ -19,7 +22,9 @@ public sealed class DlmsRequestBuilder
         _serverAddress = serverAddress;
         _clientAddress = clientAddress;
     }
+    #endregion
 
+    #region Public API
     /// <summary>
     /// Формирует минимальный DLMS GET-запрос в HDLC-кадре.
     /// </summary>
@@ -96,7 +101,9 @@ public sealed class DlmsRequestBuilder
     {
         _nextSendControl = 0x10;
     }
+    #endregion
 
+    #region HDLC Frame Builders
     private byte[] BuildHdlcCommandFrame(byte control)
     {
         var destination = EncodeHdlcAddress(_serverAddress);
@@ -149,7 +156,9 @@ public sealed class DlmsRequestBuilder
 
         return WrapWithFlags(frameBody);
     }
+    #endregion
 
+    #region Helpers
     private static byte[] WrapWithFlags(List<byte> frameBody)
     {
         var frame = new byte[frameBody.Count + 2];
@@ -215,4 +224,5 @@ public sealed class DlmsRequestBuilder
 
         return parts.Select(byte.Parse).ToArray();
     }
+    #endregion
 }
