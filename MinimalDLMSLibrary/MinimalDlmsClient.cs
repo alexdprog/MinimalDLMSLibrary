@@ -20,12 +20,11 @@ public sealed class MinimalDlmsClient
     public const string SerialNumberObis = "0.0.96.1.0.255";
 
     private readonly IConnectionDevice _portAdapter;
-
-    private int _serverAddress;
     private readonly int _clientAddress;
 
+    private int _serverAddress;
     private bool _associationEstablished;
-    private byte _nextSendControl = 0x10;
+    private DlmsRequestBuilder? _requestBuilder;
 
     /// <summary>
     /// Server address.
@@ -33,16 +32,28 @@ public sealed class MinimalDlmsClient
     public int ServerAddress
     {
         get => _serverAddress;
-        set => _serverAddress = value;
+        set
+        {
+            if (_serverAddress == value)
+            {
+                return;
+            }
+
+            _serverAddress = value;
+            _associationEstablished = false;
+            _requestBuilder = null;
+        }
     }
 
     /// <summary>
     /// Создает экземпляр минимального DLMS-клиента.
     /// </summary>
     /// <param name="portAdapter">Адаптер порта.</param>
-    public MinimalDlmsClient(IConnectionDevice portAdapter)
+    /// <param name="clientAddress">DLMS-адрес клиента. По умолчанию 0x10.</param>
+    public MinimalDlmsClient(IConnectionDevice portAdapter, int clientAddress = 0x10)
     {
         _portAdapter = portAdapter;
+        _clientAddress = clientAddress;
     }
 
     /// <summary>
@@ -67,15 +78,15 @@ public sealed class MinimalDlmsClient
     {
         await EnsureAssociationAsync(timeoutMs);
 
-        var request = BuildGetRequest(obis);
+        var request = GetRequestBuilder().BuildGetRequest(obis);
         Debug.WriteLine("MinDLMS write request: " + BitConverter.ToString(request));
+
         CancellationTokenSource _cts = new CancellationTokenSource();
         //await _portAdapter.WriteData(request);
-
         //var response = await _portAdapter.ReadAllAsync(_cts.Token);
-        //var textValue = TryExtractText(response);
+
         byte[] response = new byte[] { };
-        string textValue = "";
+        var textValue = TryExtractText(response);
         return new DlmsReadResult(obis, response, textValue);
     }
 
@@ -91,12 +102,15 @@ public sealed class MinimalDlmsClient
             return;
         }
 
-        var snrm = BuildSnrmRequest();
+        var requestBuilder = GetRequestBuilder();
+        requestBuilder.ResetControlSequence();
+
+        var snrm = requestBuilder.BuildSnrmRequest();
         Debug.WriteLine("MinDLMS Snrm request: " + BitConverter.ToString(snrm));
         //await _portAdapter.WriteAsync(snrm);
         //_ = await _portAdapter.ReadAsync(timeoutMs); // UA
 
-        var aarq = BuildAarqRequest();
+        var aarq = requestBuilder.BuildAarqRequest();
         Debug.WriteLine("MinDLMS Aarq request: " + BitConverter.ToString(aarq));
         //await _portAdapter.WriteAsync(aarq);
         //_ = await _portAdapter.ReadAsync(timeoutMs); // AARE
@@ -104,203 +118,9 @@ public sealed class MinimalDlmsClient
         _associationEstablished = true;
     }
 
-    /// <summary>
-    /// Формирует минимальный DLMS GET-запрос.
-    /// </summary>
-    /// <param name="obis">OBIS-код в формате A.B.C.D.E.F.</param>
-    /// <returns>Байты GET-запроса.</returns>
-    public byte[] BuildGetRequest(string obis)
+    private DlmsRequestBuilder GetRequestBuilder()
     {
-        var obisBytes = ParseObis(obis);
-
-        var getApdu = new byte[]
-        {
-            0xC0, // GET-Request
-            0x01, // Normal
-            0x01, // Invoke-Id-And-Priority
-            0x00, 0x01, // ClassId = 1 (Data)
-            0x00, // InstanceId tag placeholder
-            obisBytes[0], obisBytes[1], obisBytes[2], obisBytes[3], obisBytes[4], obisBytes[5],
-            0x02, // AttributeId = 2 (value)
-            0x00  // Access selection = false
-        };
-
-        return BuildMinimalHdlcFrame(getApdu);
-    }
-
-    /// <summary>
-    /// Формирует SNRM-запрос.
-    /// </summary>
-    /// <returns>Байты SNRM кадра.</returns>
-    public byte[] BuildSnrmRequest()
-    {
-        return BuildHdlcCommandFrame(0x93);
-    }
-
-    /// <summary>
-    /// Формирует AARQ-запрос (LN, без аутентификации).
-    /// </summary>
-    /// <returns>Байты AARQ кадра.</returns>
-    public byte[] BuildAarqRequest()
-    {
-        var aarqApdu = new byte[]
-        {
-            0xE6, 0xE6, 0x00,
-            0x60, 0x1D,
-            0xA1, 0x09, 0x06, 0x07, 0x60, 0x85, 0x74, 0x05, 0x08, 0x01, 0x01,
-            0xBE, 0x10,
-            0x04, 0x0E,
-            0x01, 0x00, 0x00, 0x00,
-            0x06, 0x5F, 0x1F, 0x04, 0x00,
-            0x62, 0x1E, 0x5D,
-            0xFF, 0xFF
-        };
-
-        return BuildHdlcInformationFrame(_nextSendControl, aarqApdu);
-    }
-
-    private byte[] BuildMinimalHdlcFrame(byte[] payload)
-    {
-        var serverBytes = EncodeHdlcAddress(_serverAddress);
-        var clientBytes = EncodeHdlcAddress(_clientAddress);
-
-        // Минимальный HDLC каркас: флаг + адреса + payload + флаг.
-        // FCS/LLC здесь намеренно опущены, так как библиотека делает только минимальное чтение.
-        var frame = new byte[1 + serverBytes.Length + clientBytes.Length + payload.Length + 1];
-        var index = 0;
-        frame[index++] = 0x7E;
-
-        Array.Copy(serverBytes, 0, frame, index, serverBytes.Length);
-        index += serverBytes.Length;
-
-        Array.Copy(clientBytes, 0, frame, index, clientBytes.Length);
-        index += clientBytes.Length;
-
-        Array.Copy(payload, 0, frame, index, payload.Length);
-        index += payload.Length;
-
-        frame[index] = 0x7E;
-        return frame;
-    }
-
-    private byte[] BuildHdlcCommandFrame(byte control)
-    {
-        var destination = EncodeHdlcAddress(_serverAddress);
-        var source = EncodeHdlcAddress(_clientAddress);
-
-        var bodyLength = 2 + destination.Length + source.Length + 1 + 2;
-        var frameBody = new List<byte>
-        {
-            0xA0,
-            (byte)bodyLength
-        };
-
-        frameBody.AddRange(destination);
-        frameBody.AddRange(source);
-        frameBody.Add(control);
-
-        var fcs = ComputeCrc16Ccitt(frameBody.ToArray());
-        frameBody.Add((byte)(fcs & 0xFF));
-        frameBody.Add((byte)(fcs >> 8));
-
-        return WrapWithFlags(frameBody);
-    }
-
-    private byte[] BuildHdlcInformationFrame(byte control, byte[] information)
-    {
-        var destination = EncodeHdlcAddress(_serverAddress);
-        var source = EncodeHdlcAddress(_clientAddress);
-
-        var bodyLength = 2 + destination.Length + source.Length + 1 + 2 + information.Length + 2;
-        var frameBody = new List<byte>
-        {
-            0xA0,
-            (byte)bodyLength
-        };
-
-        frameBody.AddRange(destination);
-        frameBody.AddRange(source);
-        frameBody.Add(control);
-
-        var headerForCrc = frameBody.ToArray();
-        var hcs = ComputeCrc16Ccitt(headerForCrc);
-        frameBody.Add((byte)(hcs & 0xFF));
-        frameBody.Add((byte)(hcs >> 8));
-
-        frameBody.AddRange(information);
-
-        var fcs = ComputeCrc16Ccitt(frameBody.ToArray());
-        frameBody.Add((byte)(fcs & 0xFF));
-        frameBody.Add((byte)(fcs >> 8));
-
-        return WrapWithFlags(frameBody);
-    }
-
-    private static byte[] WrapWithFlags(List<byte> frameBody)
-    {
-        var frame = new byte[frameBody.Count + 2];
-        frame[0] = 0x7E;
-        frameBody.CopyTo(frame, 1);
-        frame[^1] = 0x7E;
-        return frame;
-    }
-
-    private static byte[] EncodeHdlcAddress(int address)
-    {
-        if (address < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(address), "Адрес не может быть отрицательным.");
-        }
-
-        if (address <= 0x7F)
-        {
-            return new[] { (byte)((address << 7) | 0x01) };
-        }
-
-        if (address <= 0x3FFF)
-        {
-            var hi = (byte)(((address >> 7) & 0x7F) << 1);
-            var lo = (byte)(((address & 0x7F) << 1) | 0x01);
-               var value = address << 14 | 10;
-            return new[] { hi, lo };
-        }
-
-        throw new ArgumentOutOfRangeException(nameof(address), "Поддерживаются адреса до 14 бит.");
-    }
-
-    private static ushort ComputeCrc16Ccitt(byte[] bytes)
-    {
-        ushort crc = 0xFFFF;
-
-        foreach (var value in bytes)
-        {
-            crc ^= value;
-            for (var i = 0; i < 8; i++)
-            {
-                if ((crc & 1) != 0)
-                {
-                    crc = (ushort)((crc >> 1) ^ 0x8408);
-                }
-                else
-                {
-                    crc >>= 1;
-                }
-            }
-        }
-
-        crc ^= 0xFFFF;
-        return crc;
-    }
-
-    private static byte[] ParseObis(string obis)
-    {
-        var parts = obis.Split('.');
-        if (parts.Length != 6)
-        {
-            throw new ArgumentException("OBIS должен состоять из 6 частей.", nameof(obis));
-        }
-
-        return parts.Select(byte.Parse).ToArray();
+        return _requestBuilder ??= new DlmsRequestBuilder(_serverAddress, _clientAddress);
     }
 
     private static string? TryExtractText(byte[] response)
