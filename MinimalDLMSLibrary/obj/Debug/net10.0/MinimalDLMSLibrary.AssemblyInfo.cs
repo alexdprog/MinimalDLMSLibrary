@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MinimalDLMSLibrary")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+66d6810201d6af8d52d87932bbbd6ce2c20bb9eb")]
 [assembly: System.Reflection.AssemblyProductAttribute("MinimalDLMSLibrary")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MinimalDLMSLibrary")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

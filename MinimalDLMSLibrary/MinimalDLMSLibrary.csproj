@@ -1,9 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\..\EnergoSphere.MAUI\Operator.MAUI\Core\Core.csproj" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<DefineConstants>STUBS</DefineConstants>
+	</PropertyGroup>
 
 </Project>
