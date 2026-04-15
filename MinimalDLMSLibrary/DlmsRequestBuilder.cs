@@ -5,6 +5,8 @@ namespace MinimalDLMS;
 /// </summary>
 public sealed class DlmsRequestBuilder
 {
+    private const int DefaultLogicalServerAddress = 0x01;
+
     #region Fields
     private readonly int _serverAddress;
     private readonly int _clientAddress;
@@ -106,7 +108,7 @@ public sealed class DlmsRequestBuilder
     #region HDLC Frame Builders
     private byte[] BuildHdlcCommandFrame(byte control)
     {
-        var destination = EncodeHdlcAddress(_serverAddress);
+        var destination = EncodeHdlcAddress(GetNormalizedServerAddress());
         var source = EncodeHdlcAddress(_clientAddress);
 
         var bodyLength = 2 + destination.Length + source.Length + 1 + 2;
@@ -129,7 +131,7 @@ public sealed class DlmsRequestBuilder
 
     private byte[] BuildHdlcInformationFrame(byte control, byte[] information)
     {
-        var destination = EncodeHdlcAddress(_serverAddress);
+        var destination = EncodeHdlcAddress(GetNormalizedServerAddress());
         var source = EncodeHdlcAddress(_clientAddress);
 
         var bodyLength = 2 + destination.Length + source.Length + 1 + 2 + information.Length + 2;
@@ -223,6 +225,20 @@ public sealed class DlmsRequestBuilder
         }
 
         return parts.Select(byte.Parse).ToArray();
+    }
+
+    private int GetNormalizedServerAddress()
+    {
+        // В Gurux для IEC HDLC обычно используется комбинированный server address:
+        // logical(по умолчанию 1) + physical.
+        // Если передан только физический адрес (<= 0x7F), собираем полный адрес,
+        // чтобы SNRM совпадал с форматом Gurux (например, 0x7F -> 0x00FF -> 02-FF в HDLC).
+        if (_serverAddress <= 0x7F)
+        {
+            return DlmsAddressHelper.GetServerAddress(DefaultLogicalServerAddress, _serverAddress);
+        }
+
+        return _serverAddress;
     }
     #endregion
 }
