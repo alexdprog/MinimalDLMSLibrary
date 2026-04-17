@@ -11,7 +11,7 @@
 	</ItemGroup>
 
 	<PropertyGroup>
-		<DefineConstants>STUBS</DefineConstants>
+		<DefineConstants>NoSTUBS</DefineConstants>
 	</PropertyGroup>
 
 </Project>

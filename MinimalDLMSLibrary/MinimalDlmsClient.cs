@@ -19,17 +19,17 @@ public sealed class MinimalDlmsClient
     /// </summary>
     public const string SerialNumberObis = "0.0.96.1.0.255";
 
-    private readonly IConnectionDevice _portAdapter;
+    private readonly IConnectionDevice _device;
     private readonly int _clientAddress;
 
-    private int _serverAddress;
+    private DlmsAddress _serverAddress;
     private bool _associationEstablished;
     private DlmsRequestBuilder? _requestBuilder;
 
     /// <summary>
     /// Server address.
     /// </summary>
-    public int ServerAddress
+    public DlmsAddress ServerAddress
     {
         get => _serverAddress;
         set
@@ -52,7 +52,7 @@ public sealed class MinimalDlmsClient
     /// <param name="clientAddress">DLMS-адрес клиента. По умолчанию 0x10.</param>
     public MinimalDlmsClient(IConnectionDevice portAdapter, int clientAddress = 0x10)
     {
-        _portAdapter = portAdapter;
+        _device = portAdapter;
         _clientAddress = clientAddress;
     }
 
@@ -82,8 +82,8 @@ public sealed class MinimalDlmsClient
         Debug.WriteLine("MinDLMS write request: " + BitConverter.ToString(request));
 
         CancellationTokenSource _cts = new CancellationTokenSource();
-        //await _portAdapter.WriteData(request);
-        //var response = await _portAdapter.ReadAllAsync(_cts.Token);
+        await _device.WriteData(request);
+        var response = await _device.ReadAllAsync(_cts.Token);
 
         byte[] response = new byte[] { };
         var textValue = TryExtractText(response);
@@ -101,19 +101,19 @@ public sealed class MinimalDlmsClient
         {
             return;
         }
-
+        CancellationTokenSource _cts = new CancellationTokenSource();
         var requestBuilder = GetRequestBuilder();
         requestBuilder.ResetControlSequence();
 
         var snrm = requestBuilder.BuildSnrmRequest();
         Debug.WriteLine("MinDLMS Snrm request: " + BitConverter.ToString(snrm));
-        //await _portAdapter.WriteAsync(snrm);
-        //_ = await _portAdapter.ReadAsync(timeoutMs); // UA
+        await _device.WriteData(snrm);
+        _ = await _device.ReadAllAsync(_cts.Token);
 
         var aarq = requestBuilder.BuildAarqRequest();
         Debug.WriteLine("MinDLMS Aarq request: " + BitConverter.ToString(aarq));
-        //await _portAdapter.WriteAsync(aarq);
-        //_ = await _portAdapter.ReadAsync(timeoutMs); // AARE
+        await _device.WriteData(aarq);
+        _ = await _device.ReadAllAsync(_cts.Token);
 
         _associationEstablished = true;
     }

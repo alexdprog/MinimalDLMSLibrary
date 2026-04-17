@@ -73,16 +73,6 @@ public sealed class DlmsAddress
             };
         }
 
-        if (address <= 0x1FFFFF)
-        {
-            return new[]
-            {
-                (byte)(((address >> 14) & 0x7F) << 1),
-                (byte)(((address >> 7) & 0x7F) << 1),
-                (byte)(((address & 0x7F) << 1) | 0x01)
-            };
-        }
-
         if (address <= 0x0FFFFFFF)
         {
             return new[]

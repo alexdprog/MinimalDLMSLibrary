@@ -8,7 +8,7 @@ public sealed class DlmsRequestBuilder
     private const int DefaultLogicalServerAddress = 0x01;
 
     #region Fields
-    private readonly int _serverAddress;
+    private readonly DlmsAddress _serverAddress;
     private readonly int _clientAddress;
     private byte _nextSendControl = 0x10;
     #endregion
@@ -19,7 +19,7 @@ public sealed class DlmsRequestBuilder
     /// </summary>
     /// <param name="serverAddress">Адрес DLMS-сервера.</param>
     /// <param name="clientAddress">Клиентский адрес.</param>
-    public DlmsRequestBuilder(int serverAddress, int clientAddress)
+    public DlmsRequestBuilder(DlmsAddress serverAddress, int clientAddress)
     {
         _serverAddress = serverAddress;
         _clientAddress = clientAddress;
@@ -108,7 +108,7 @@ public sealed class DlmsRequestBuilder
     #region HDLC Frame Builders
     private byte[] BuildHdlcCommandFrame(byte control)
     {
-        var destination = GetNormalizedServerDlmsAddress().ToHdlcBytes();
+        var destination = _serverAddress.ToHdlcBytes();// GetNormalizedServerDlmsAddress().ToHdlcBytes();
         var source = DlmsAddress.EncodeHdlcAddress(_clientAddress);
 
         var bodyLength = 2 + destination.Length + source.Length + 1 + 2;
@@ -131,7 +131,7 @@ public sealed class DlmsRequestBuilder
 
     private byte[] BuildHdlcInformationFrame(byte control, byte[] information)
     {
-        var destination = GetNormalizedServerDlmsAddress().ToHdlcBytes();
+        var destination = _serverAddress.ToHdlcBytes();// GetNormalizedServerDlmsAddress().ToHdlcBytes();
         var source = DlmsAddress.EncodeHdlcAddress(_clientAddress);
 
         var bodyLength = 2 + destination.Length + source.Length + 1 + 2 + information.Length + 2;
@@ -205,7 +205,7 @@ public sealed class DlmsRequestBuilder
         return parts.Select(byte.Parse).ToArray();
     }
 
-    private DlmsAddress GetNormalizedServerDlmsAddress()
+    /*private DlmsAddress GetNormalizedServerDlmsAddress()
     {
         // В Gurux для IEC HDLC обычно используется комбинированный server address:
         // logical (по умолчанию 1) + physical.
@@ -220,6 +220,6 @@ public sealed class DlmsRequestBuilder
         return _serverAddress <= 0x3FFF
             ? new DlmsAddress(_serverAddress >> 7, _serverAddress & 0x7F)
             : new DlmsAddress(_serverAddress >> 14, _serverAddress & 0x3FFF);
-    }
+    }*/
     #endregion
 }
