@@ -13,21 +13,6 @@ public static class DlmsAddressHelper
     /// <returns>Сформированный адрес сервера.</returns>
     public static int GetServerAddress(int logicalAddress, int physicalAddress)
     {
-        if (logicalAddress < 0 || physicalAddress < 0)
-        {
-            throw new ArgumentOutOfRangeException("Адреса должны быть неотрицательными.");
-        }
-
-        if (logicalAddress <= 0x7F && physicalAddress <= 0x7F)
-        {
-            return (logicalAddress << 7) | physicalAddress;
-        }
-
-        if (logicalAddress <= 0x3FFF && physicalAddress <= 0x3FFF)
-        {
-            return (logicalAddress << 14) | physicalAddress;
-        }
-
-        throw new ArgumentOutOfRangeException("Поддерживаются только 7-битные и 14-битные адреса.");
+        return new DlmsAddress(logicalAddress, physicalAddress).ToServerAddress();
     }
 }

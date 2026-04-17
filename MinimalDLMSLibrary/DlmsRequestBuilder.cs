@@ -108,8 +108,8 @@ public sealed class DlmsRequestBuilder
     #region HDLC Frame Builders
     private byte[] BuildHdlcCommandFrame(byte control)
     {
-        var destination = EncodeHdlcAddress(GetNormalizedServerAddress());
-        var source = EncodeHdlcAddress(_clientAddress);
+        var destination = GetNormalizedServerDlmsAddress().ToHdlcBytes();
+        var source = DlmsAddress.EncodeHdlcAddress(_clientAddress);
 
         var bodyLength = 2 + destination.Length + source.Length + 1 + 2;
         var frameBody = new List<byte>
@@ -131,8 +131,8 @@ public sealed class DlmsRequestBuilder
 
     private byte[] BuildHdlcInformationFrame(byte control, byte[] information)
     {
-        var destination = EncodeHdlcAddress(GetNormalizedServerAddress());
-        var source = EncodeHdlcAddress(_clientAddress);
+        var destination = GetNormalizedServerDlmsAddress().ToHdlcBytes();
+        var source = DlmsAddress.EncodeHdlcAddress(_clientAddress);
 
         var bodyLength = 2 + destination.Length + source.Length + 1 + 2 + information.Length + 2;
         var frameBody = new List<byte>
@@ -170,28 +170,6 @@ public sealed class DlmsRequestBuilder
         return frame;
     }
 
-    private static byte[] EncodeHdlcAddress(int address)
-    {
-        if (address < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(address), "Адрес не может быть отрицательным.");
-        }
-
-        if (address <= 0x7F)
-        {
-            return new[] { (byte)((address << 1) | 0x01) };
-        }
-
-        if (address <= 0x3FFF)
-        {
-            var hi = (byte)(((address >> 7) & 0x7F) << 1);
-            var lo = (byte)(((address & 0x7F) << 1) | 0x01);
-            return new[] { hi, lo };
-        }
-
-        throw new ArgumentOutOfRangeException(nameof(address), "Поддерживаются адреса до 14 бит.");
-    }
-
     private static ushort ComputeCrc16Ccitt(byte[] bytes)
     {
         ushort crc = 0xFFFF;
@@ -227,18 +205,21 @@ public sealed class DlmsRequestBuilder
         return parts.Select(byte.Parse).ToArray();
     }
 
-    private int GetNormalizedServerAddress()
+    private DlmsAddress GetNormalizedServerDlmsAddress()
     {
         // В Gurux для IEC HDLC обычно используется комбинированный server address:
-        // logical(по умолчанию 1) + physical.
+        // logical (по умолчанию 1) + physical.
         // Если передан только физический адрес (<= 0x7F), собираем полный адрес,
         // чтобы SNRM совпадал с форматом Gurux (например, 0x7F -> 0x00FF -> 02-FF в HDLC).
         if (_serverAddress <= 0x7F)
         {
-            return DlmsAddressHelper.GetServerAddress(DefaultLogicalServerAddress, _serverAddress);
+            return new DlmsAddress(DefaultLogicalServerAddress, _serverAddress);
         }
 
-        return _serverAddress;
+        // Если адрес уже комбинированный, декодируем его в logical/physical без изменения значения.
+        return _serverAddress <= 0x3FFF
+            ? new DlmsAddress(_serverAddress >> 7, _serverAddress & 0x7F)
+            : new DlmsAddress(_serverAddress >> 14, _serverAddress & 0x3FFF);
     }
     #endregion
 }
